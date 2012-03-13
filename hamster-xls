@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+
+# Create a .xls spreadsheet from your hamster time tracking data, with
+# the ability to specify the date range to extract.
+
+import datetime
+import argparse
+
+def writeRow(sheet, data, row_index=0, style=None):
+    """
+    Write a row to a spreadsheet sheet
+
+    `data` is a list of items to add. Each item can either be a data
+    value or a tuple of `(value, style)` where style is a
+    `xlwt.XFStyle()` object determining the item formatting.
+    """
+    kwargs = {}
+    if style:
+        kwargs['style'] = style
+
+    for column, value in enumerate(data):
+        # row indexing is zero based, row then column
+        if isinstance(value, tuple):
+            value, local_style = value
+            sheet.write(row_index, column, value, style=local_style)
+        else:
+            sheet.write(row_index, column, value, **kwargs)
+
+def dateType(string):
+    """
+    Convert a date string to a date object
+    """
+    try:
+        date = datetime.datetime.strptime(string, '%Y-%m-%d').date()
+    except ValueError:
+        msg = "%r is not a valid date" % string
+        raise argparse.ArgumentTypeError(msg)
+    return date
+
+def main():
+    # Instantiate the parser
+    parser = argparse.ArgumentParser(
+        description="Create a .xls spreadsheet from your hamster time tracking data, with the ability to specify the date range to extract.",
+        epilog="See http://projecthamster.wordpress.com/ for details about the Project Hamster Time Tracker.")
+    parser.add_argument('-e', '--end-date', metavar='DATE', type=dateType, default=datetime.date.today(),
+                       help='the date tracking data should end at, inclusive in the format YYYY-MM-DD (defaults to today)')
+    parser.add_argument('-s', '--start-date', metavar='DATE', type=dateType,
+                       help='the date tracking data should start from, inclusive in the format YYYY-MM-DD (defaults to 30 days before the end date)')
+    parser.add_argument('-o', '--output', metavar='FILE', default="./hamster-timesheet.xls",
+                       help='the .xls spreadsheet file to create (defaults to `./hamster-timesheet.xls`)')
+    parser.add_argument('-f', '--filter', metavar='FILTER', default="",
+                       help='limit the data based on search terms. Comma (",") translates to boolean OR and space (" ") to boolean AND.')
+
+    # Try and load the hamster and xlwt third party modules
+    try:
+        from hamster.client import Storage
+    except ImportError, e:
+        msg = "The hamster module cannot be found. Ensure it is installed (see http://projecthamster.wordpress.com/):\n\n%s\n" % e
+        parser.exit(message=msg)
+
+    try:
+        import xlwt
+    except ImportError, e:
+        msg = "The xlwt module cannot be found. Ensure it is installed (see http://pypi.python.org/pypi/xlwt):\n\n%s\n" % e
+        parser.exit(message=msg)
+
+    # retrieve the arguments
+    args = parser.parse_args()
+
+    # set the start date if it is not already specified
+    if not args.start_date:
+        args.start_date = args.end_date - datetime.timedelta(days=30)
+
+    storage = Storage()         # connect to the dbus service
+    wbk = xlwt.Workbook()       # create the spreadsheet workbook
+    sheet = wbk.add_sheet('timesheet') # create the sheet to populate
+
+    # Initialise a style for the header row
+    header_style = xlwt.XFStyle()
+    # Create a font to use with the style
+    font = xlwt.Font()
+    font.name = 'Arial'
+    font.bold = True
+
+    # Set the header style's font to this new one you set up
+    header_style.font = font
+
+    # Initialise a style for formatting the time
+    hour_style = xlwt.XFStyle()
+    hour_style.num_format_str = 'h:mm'
+
+    # Initialise a style for formatting the date
+    date_style = xlwt.XFStyle()
+    date_style.num_format_str = 'YYYY-MM-DD' # excel date format
+
+    # Write out the header
+    writeRow(sheet, ['Date', 'Hours', 'Project', 'Task'], style=header_style)
+
+    # Iterate over the hamster data for the requested time span
+    seconds_per_day = (60 * 60 * 24)
+    for row_index, fact in enumerate(storage.get_facts(args.start_date, end_date=args.end_date, search_terms=args.filter), 1):
+        project = fact['category']
+        date = fact['date']
+        hours = fact['delta'].total_seconds() / seconds_per_day # this produces a decimal day
+        task = fact['name']
+
+        # write out the row to the spreadsheet
+        writeRow(sheet, [(date, date_style), (hours, hour_style), project, task], row_index)
+
+    # save the workbook to the output file
+    wbk.save(args.output)
+
+if __name__ == '__main__':
+    main()
