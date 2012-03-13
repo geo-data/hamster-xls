@@ -6,6 +6,8 @@
 import datetime
 import argparse
 
+__version__ = '1.0'
+
 def writeRow(sheet, data, row_index=0, style=None):
     """
     Write a row to a spreadsheet sheet
@@ -50,6 +52,7 @@ def main():
                        help='the .xls spreadsheet file to create (defaults to `./hamster-timesheet.xls`)')
     parser.add_argument('-f', '--filter', metavar='FILTER', default="",
                        help='limit the data based on search terms. Comma (",") translates to boolean OR and space (" ") to boolean AND.')
+    parser.add_argument('--version', action='version', version='%%(prog)s %s' % __version__)
 
     # Try and load the hamster and xlwt third party modules
     try:
