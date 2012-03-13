@@ -37,9 +37,9 @@ From the inbuilt help:
 
 ## Requirements
 
-- Python > 2.5 < 3
+- [Python](http://www.python.org) > 2.5 < 3
 - [Hamster](http://projecthamster.wordpress.com/) to be installed and
   running, as the application connects to the hamster service using
-  DBUS.
+  [D-Bus](http://www.freedesktop.org/wiki/Software/dbus).
 - The [xlwt](http://pypi.python.org/pypi/xlwt) python module for
   generating the spreadsheets.
