@@ -6,7 +6,7 @@
 import datetime
 import argparse
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 def writeRow(sheet, data, row_index=0, style=None):
     """
@@ -39,6 +39,52 @@ def dateType(string):
         raise argparse.ArgumentTypeError(msg)
     return date
 
+def iterateFacts(storage, args):
+    """
+    Return an iterator of hamster facts from the storage
+
+    The facts are optionally grouped and filtered according to the
+    args parameter.
+    """
+    facts = storage.get_facts(args.start_date, end_date=args.end_date, search_terms=args.filter)
+
+    if not args.group:
+        # just create an iterator for all the facts
+        for fact in facts:
+            yield fact
+        raise StopIteration
+
+    # we need to group by date
+    from itertools import groupby
+
+    # keyword arguments for `date.replace()` depending on the required
+    # grouping
+    replace = {}
+    if args.group == 'year':
+        replace.update({'month': 1, 'day': 1})
+    elif args.group == 'month':
+        replace.update({'day': 1})
+
+    def keyfunc(fact):
+        """
+        Group a fact by date, category and name
+        """
+
+        date = fact['date']
+        new_date = date.replace(**replace)
+        return (new_date, fact['category'], fact['name'])
+
+    # iterate over the grouped facts, summing the time deltas
+    for k, g in groupby(facts, keyfunc):
+        delta = reduce(lambda x, y: x+y, (fact['delta'] for fact in g)) # sum the time deltas
+        fact = {
+            'date': k[0],
+            'category': k[1],
+            'name': k[2],
+            'delta': delta
+            }
+        yield fact
+
 def main():
     # Instantiate the parser
     parser = argparse.ArgumentParser(
@@ -52,6 +98,8 @@ def main():
                        help='the .xls spreadsheet file to create (defaults to `./hamster-timesheet.xls`)')
     parser.add_argument('-f', '--filter', metavar='FILTER', default="",
                        help='limit the data based on search terms. Comma (",") translates to boolean OR and space (" ") to boolean AND.')
+    parser.add_argument('-g', '--group', choices=('day', 'month', 'year'),
+                       help='group the tasks by day, month or year')
     parser.add_argument('--version', action='version', version='%%(prog)s %s' % __version__)
 
     # Try and load the hamster and xlwt third party modules
@@ -101,7 +149,7 @@ def main():
 
     # Iterate over the hamster data for the requested time span
     seconds_per_day = (60 * 60 * 24)
-    for row_index, fact in enumerate(storage.get_facts(args.start_date, end_date=args.end_date, search_terms=args.filter), 1):
+    for row_index, fact in enumerate(iterateFacts(storage, args), 1):
         project = fact['category']
         date = fact['date']
         hours = fact['delta'].total_seconds() / seconds_per_day # this produces a decimal day
