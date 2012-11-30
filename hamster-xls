@@ -5,8 +5,10 @@
 
 import datetime
 import argparse
+from hamster.client import Storage
+from hamster.lib.stuff import Fact
 
-__version__ = '1.1'
+__version__ = '1.2'
 
 def writeRow(sheet, data, row_index=0, style=None):
     """
@@ -46,7 +48,8 @@ def iterateFacts(storage, args):
     The facts are optionally grouped and filtered according to the
     args parameter.
     """
-    facts = storage.get_facts(args.start_date, end_date=args.end_date, search_terms=args.filter)
+    filter_ = args.filter.replace(',', ' OR ')
+    facts = storage.get_facts(args.start_date, end_date=args.end_date, search_terms=filter_)
 
     if not args.group:
         # just create an iterator for all the facts
@@ -70,19 +73,17 @@ def iterateFacts(storage, args):
         Group a fact by date, category and name
         """
 
-        date = fact['date']
+        date = fact.date
         new_date = date.replace(**replace)
-        return (new_date, fact['category'], fact['name'])
+        return (new_date, fact.category, fact.activity)
 
     # iterate over the grouped facts, summing the time deltas
     for k, g in groupby(facts, keyfunc):
-        delta = reduce(lambda x, y: x+y, (fact['delta'] for fact in g)) # sum the time deltas
-        fact = {
-            'date': k[0],
-            'category': k[1],
-            'name': k[2],
-            'delta': delta
-            }
+        delta = reduce(lambda x, y: x+y, (fact.delta for fact in g)) # sum the time deltas
+        activity, category = k[2], k[1]
+        fact = Fact(activity, category)
+        fact.date = k[0]
+        fact.delta = delta
         yield fact
 
 def main():
@@ -102,13 +103,7 @@ def main():
                        help='group the tasks by day, month or year')
     parser.add_argument('--version', action='version', version='%%(prog)s %s' % __version__)
 
-    # Try and load the hamster and xlwt third party modules
-    try:
-        from hamster.client import Storage
-    except ImportError, e:
-        msg = "The hamster module cannot be found. Ensure it is installed (see http://projecthamster.wordpress.com/):\n\n%s\n" % e
-        parser.exit(message=msg)
-
+    # Try and load the xlwt third party module
     try:
         import xlwt
     except ImportError, e:
@@ -145,18 +140,20 @@ def main():
     date_style.num_format_str = 'YYYY-MM-DD' # excel date format
 
     # Write out the header
-    writeRow(sheet, ['Date', 'Hours', 'Project', 'Task'], style=header_style)
+    writeRow(sheet, ['Date', 'Hours', 'Project', 'Task', 'Comment', 'Tags'], style=header_style)
 
     # Iterate over the hamster data for the requested time span
     seconds_per_day = (60 * 60 * 24)
     for row_index, fact in enumerate(iterateFacts(storage, args), 1):
-        project = fact['category']
-        date = fact['date']
-        hours = fact['delta'].total_seconds() / seconds_per_day # this produces a decimal day
-        task = fact['name']
+        project = fact.category
+        date = fact.date
+        hours = fact.delta.total_seconds() / seconds_per_day # this produces a decimal day
+        task = fact.activity
+        comment = fact.description
+        tags = ', '.join(fact.tags)
 
         # write out the row to the spreadsheet
-        writeRow(sheet, [(date, date_style), (hours, hour_style), project, task], row_index)
+        writeRow(sheet, [(date, date_style), (hours, hour_style), project, task, comment, tags], row_index)
 
     # save the workbook to the output file
     wbk.save(args.output)
