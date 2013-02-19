@@ -8,7 +8,7 @@ import argparse
 from hamster.client import Storage
 from hamster.lib.stuff import Fact
 
-__version__ = '1.2'
+__version__ = '1.3'
 
 def writeRow(sheet, data, row_index=0, style=None):
     """
@@ -75,10 +75,14 @@ def iterateFacts(storage, args):
 
         date = fact.date
         new_date = date.replace(**replace)
-        return (new_date, fact.category, fact.activity)
+
+        if args.group_by == 'activity':
+            return (new_date, fact.category, fact.activity)
+        else:
+            return (new_date, fact.category, '')
 
     # iterate over the grouped facts, summing the time deltas
-    for k, g in groupby(facts, keyfunc):
+    for k, g in groupby(sorted(facts, key=keyfunc), keyfunc):
         delta = reduce(lambda x, y: x+y, (fact.delta for fact in g)) # sum the time deltas
         activity, category = k[2], k[1]
         fact = Fact(activity, category)
@@ -101,6 +105,8 @@ def main():
                        help='limit the data based on search terms. Comma (",") translates to boolean OR and space (" ") to boolean AND.')
     parser.add_argument('-g', '--group', choices=('day', 'month', 'year'),
                        help='group the tasks by day, month or year')
+    parser.add_argument('-b', '--group-by', choices=('category', 'activity'), default="activity",
+                       help='choose the category to group by (defaults to activity). Only useful in conjunction with `--group`')
     parser.add_argument('--version', action='version', version='%%(prog)s %s' % __version__)
 
     # Try and load the xlwt third party module
