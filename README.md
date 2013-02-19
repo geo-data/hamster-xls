@@ -14,7 +14,7 @@ filter the data based on simple search terms.
 From the inbuilt help:
 
     usage: hamster-xls [-h] [-e DATE] [-s DATE] [-o FILE] [-f FILTER]
-                       [-g {day,month,year}] [--version]
+                       [-g {day,month,year}] [-b {category,activity}] [--version]
     
     Create a .xls spreadsheet from your hamster time tracking data, with the
     ability to specify the date range to extract.
@@ -37,6 +37,9 @@ From the inbuilt help:
                             AND.
       -g {day,month,year}, --group {day,month,year}
                             group the tasks by day, month or year
+      -b {category,activity}, --group-by {category,activity}
+                            choose the category to group by (defaults to
+                            activity). Only useful in conjunction with `--group`
       --version             show program's version number and exit
 
 ## Requirements
